@@ -1,0 +1,73 @@
+name: DevSecOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài đặt môi trường Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Bạn có thể đổi sang bản 20 tùy thuộc vào NodeGoat cũ
+
+      - name: Cài đặt các thư viện phụ thuộc (Dependencies)
+        run: npm install
+
+  sast_scan:
+    needs: build 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Quét bảo mật bằng Semgrep
+        run: |
+          python3 -m pip install semgrep
+          semgrep scan --config=auto
+
+      - name: Quét bảo mật bằng SonarCloud
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token này sẽ cấu hình ở Bước 3
+
+  sca_scan:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Quét lỗ hổng thư viện bằng Snyk
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }} 
+        with:
+          args: --severity-threshold=high
+
+  dast_scan:
+    needs: [sast_scan, sca_scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Khởi động ứng dụng trong môi trường ảo
+        run: |
+          npm install
+          npm start & 
+          sleep 15 # Chờ 15 giây để đảm bảo server NodeGoat khởi động hoàn toàn
+
+      - name: Quét lỗ hổng bằng OWASP ZAP
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:4000'
+          fail_action: true
