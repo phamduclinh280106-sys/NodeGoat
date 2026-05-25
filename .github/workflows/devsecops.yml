@@ -59,7 +59,7 @@ jobs:
           args: --severity-threshold=critical
 
   dast-scan:
-    need: [sast_scan, sca_scan]
+    needs: [sast_scan, sca_scan]
     runs-on: ubuntu-latest
 
     steps:
