@@ -59,6 +59,7 @@ jobs:
           args: --severity-threshold=critical
 
   dast-scan:
+    need: [sast_scan, sca_scan]
     runs-on: ubuntu-latest
 
     steps:
@@ -94,4 +95,5 @@ jobs:
           target: 'http://localhost:4000'
           allow_issue_writing: false
           fail_action: false
+          artifact_name: zapscan
           cmd_options: '-I'
