@@ -61,7 +61,7 @@ jobs:
   dast_scan:
     needs: [sast_scan, sca_scan]
     runs-on: ubuntu-latest
-    service:
+    services:
       mongodb:
         image: mongo:4.4
         ports:
