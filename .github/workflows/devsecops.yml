@@ -57,8 +57,8 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }} 
         with:
           args: --severity-threshold=critical
-
-  dast-scan:
+          
+dast-scan:
   runs-on: ubuntu-latest
 
   steps:
