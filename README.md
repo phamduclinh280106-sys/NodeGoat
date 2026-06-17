@@ -6,7 +6,7 @@ Being lightweight, fast, and scalable, Node.js is becoming a widely adopted plat
 
 OWASP Top 10 for Node.js web applications:
 
-### Know it!
+### Know it!.
 
 This application bundled a tutorial page that explains the OWASP Top 10 vulnerabilities and how to fix them.
 
@@ -155,7 +155,7 @@ Here are the amazing [contributors](https://github.com/OWASP/NodeGoat/graphs/con
 
 ## Supports
 
-- Thanks to JetBrains for providing licenses to fantastic [WebStorm IDE](https://www.jetbrains.com/webstorm/) to build this project.
+Thanks to JetBrains for providing licenses to fantastic [WebStorm IDE](https://www.jetbrains.com/webstorm/) to build this project.
 
 ## License
 
