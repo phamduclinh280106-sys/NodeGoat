@@ -6,7 +6,7 @@ Being lightweight, fast, and scalable, Node.js is becoming a widely adopted plat
 
 OWASP Top 10 for Node.js web applications:
 
-### Know it!
+### Know it!.
 
 This application bundled a tutorial page that explains the OWASP Top 10 vulnerabilities and how to fix them.
 
