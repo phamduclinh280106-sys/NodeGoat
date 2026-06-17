@@ -21,7 +21,6 @@ jobs:
       - name: Cài đặt các thư viện phụ thuộc (Dependencies)
         run: npm install
 
-
   sast_semgrep_scan:
     name: Semgrep check
     needs: build
@@ -29,13 +28,13 @@ jobs:
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v4
- 
+
       - name: Quét bảo mật bằng Semgrep
         run: |
           python3 -m pip install semgrep
           semgrep scan --config=auto
         continue-on-error: true
- 
+
   sast_sonarcloud_scan:
     name: SonarQube Cloud check
     needs: build
@@ -43,7 +42,7 @@ jobs:
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v4
- 
+
       - name: Quét bảo mật bằng SonarCloud
         uses: SonarSource/sonarcloud-github-action@master
         env:
@@ -61,7 +60,7 @@ jobs:
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v4
- 
+
       - name: Quét lỗ hổng thư viện bằng Snyk
         uses: snyk/actions/node@master
         env:
@@ -69,48 +68,52 @@ jobs:
         with:
           args: --severity-threshold=critical
         continue-on-error: true
-        
+
   dast_scan:
     needs: [sast_semgrep_scan, sast_sonarcloud_scan, sca_snyk_scan]
     runs-on: ubuntu-latest
     permissions:
       issues: write
       contents: read
+
+    services:
+      mongodb:
+        image: mongo:4.4
+        ports:
+          - 27017:27017
+
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v4
 
-      - name: Start NodeGoat
-        run: |
-          docker compose up -d --build
-          docker compose ps
+      - name: Cài đặt Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
-      - name: Wait for NodeGoat
+      - name: Cài đặt thư viện NodeGoat
+        run: npm install
+
+      - name: Đổ dữ liệu mẫu vào Database
+        run: npm run db:seed
+        env:
+          MONGODB_URI: mongodb://localhost:27017/nodegoat
+
+      - name: Khởi động NodeGoat ngầm
         run: |
-          for i in {1..60}; do
-            if curl -f http://localhost:4000; then
-              echo "NodeGoat is ready"
-              exit 0
-            fi
-            echo "Waiting for NodeGoat..."
-            sleep 5
-          done
-          echo "NodeGoat did not start in time"
-          docker compose logs
-          exit 1
+          npm start &
+          npx wait-on http://localhost:4000 --timeout 60000
+        env:
+          MONGODB_URI: mongodb://localhost:27017/nodegoat
+          PORT: 4000
 
       - name: Run ZAP Baseline Scan
-        run: |
-          docker run --rm \
-            --network=host \
-            -v "${{ github.workspace }}:/zap/wrk/:rw" \
-            ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py \
-            -t http://localhost:4000 \
-            -J zap_report.json \
-            -w zap_report.md \
-            -r zap_report.html \
-            -I || true
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: 'http://localhost:4000'
+          fail_action: false
+
   quality_gate:
     name: Quality Gate
     runs-on: ubuntu-latest
