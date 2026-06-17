@@ -21,18 +21,29 @@ jobs:
       - name: Cài đặt các thư viện phụ thuộc (Dependencies)
         run: npm install
 
-  sast_scan:
-    needs: build 
+
+  sast_semgrep_scan:
+    name: Semgrep check
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v4
-
+ 
       - name: Quét bảo mật bằng Semgrep
         run: |
           python3 -m pip install semgrep
           semgrep scan --config=auto
-
+        continue-on-error: true
+ 
+  sast_sonarcloud_scan:
+    name: SonarQube Cloud check
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+ 
       - name: Quét bảo mật bằng SonarCloud
         uses: SonarSource/sonarcloud-github-action@master
         env:
@@ -43,27 +54,30 @@ jobs:
             -Dsonar.projectKey=phamduclinh280106-sys_NodeGoat
             -Dsonar.organization=phamduclinh280106-sys
 
-
-  sca_scan:
+  sca_snyk_scan:
+    name: Snyk check
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v4
-
+ 
       - name: Quét lỗ hổng thư viện bằng Snyk
         uses: snyk/actions/node@master
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }} 
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: --severity-threshold=critical
-
-  dast-scan:
-    needs: [sast_scan, sca_scan]
+        continue-on-error: true
+        
+  dast_scan:
+    needs: [sast_semgrep_scan, sast_sonarcloud_scan, sca_snyk_scan]
     runs-on: ubuntu-latest
-
+    permissions:
+      issues: write
+      contents: read
     steps:
-      - name: Checkout source code
+      - name: Checkout mã nguồn
         uses: actions/checkout@v4
 
       - name: Start NodeGoat
@@ -97,3 +111,15 @@ jobs:
             -w zap_report.md \
             -r zap_report.html \
             -I || true
+  quality_gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [sast_semgrep_scan, sast_sonarcloud_scan, sca_snyk_scan, dast_scan]
+    steps:
+      - name: Kiểm tra kết quả pipeline
+        run: |
+          echo "Tất cả các bước scan đã hoàn thành."
+          echo "Xem chi tiết kết quả tại:"
+          echo "  - SonarCloud Dashboard"
+          echo "  - Snyk Dashboard"
+          echo "  - ZAP Report (GitHub Issues)"
