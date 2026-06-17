@@ -32,6 +32,29 @@ function ResearchHandler(db) {
             environmentalScripts
         });
     };
+        // Chỉ cho phép các domain tin cậy
+    const ALLOWED_DOMAINS = ['api.stockmarket.com', 'finance.yahoo.com'];
+
+    this.displayResearch = (req, res) => {
+        if (req.query.symbol && req.query.url) {
+            try {
+                const targetUrl = new URL(req.query.url);
+                
+                // Kiểm tra xem domain có nằm trong whitelist không
+                if (!ALLOWED_DOMAINS.includes(targetUrl.hostname)) {
+                    return res.status(400).send("URL không được phép!");
+                }
+
+                const finalUrl = targetUrl.origin + targetUrl.pathname + req.query.symbol;
+                
+                needle.get(finalUrl, (error, newResponse, body) => {
+                    // Xử lý tiếp...
+                });
+            } catch (e) {
+                return res.status(400).send("URL không hợp lệ");
+            }
+        }
+};
 
 }
 
