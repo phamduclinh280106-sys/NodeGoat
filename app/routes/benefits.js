@@ -11,6 +11,9 @@ function BenefitsHandler(db) {
     const benefitsDAO = new BenefitsDAO(db);
 
     this.displayBenefits = (req, res, next) => {
+        if (!req.user || !req.user.isAdmin) {
+            return res.status(403).send("Bạn không có quyền truy cập trang này!");
+        }
 
         benefitsDAO.getAllNonAdminUsers((error, users) => {
 

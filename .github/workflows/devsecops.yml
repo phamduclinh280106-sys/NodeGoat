@@ -29,11 +29,75 @@ jobs:
       - name: Checkout mã nguồn
         uses: actions/checkout@v4
 
-      - name: Quét bảo mật bằng Semgrep
+      - name: Cài Semgrep
+        run: python3 -m pip install semgrep
+
+      # Các rule này dùng cho demo Project 1: chỉ gate các lỗi tiêu biểu nhóm chọn.
+      # Nếu muốn chuyên nghiệp hơn, có thể đưa phần này ra file .semgrep/nodegoat-rules.yml.
+      - name: Tạo custom Semgrep rules cho NodeGoat
         run: |
-          python3 -m pip install semgrep
-          semgrep scan --config=auto
-        continue-on-error: true
+          cat > nodegoat-security-rules.yml <<'RULES'
+          rules:
+            - id: nodegoat-open-redirect-query
+              languages: [javascript]
+              severity: ERROR
+              message: "Open Redirect: res.redirect() sử dụng URL lấy trực tiếp từ query string."
+              metadata:
+                category: security
+                cwe: "CWE-601"
+                owasp: "A01:2021-Broken Access Control"
+              patterns:
+                - pattern: res.redirect(req.query.$PARAM)
+
+            - id: nodegoat-idor-url-userid
+              languages: [javascript]
+              severity: ERROR
+              message: "IDOR risk: userId được lấy từ URL parameter thay vì session của người dùng hiện tại."
+              metadata:
+                category: security
+                cwe: "CWE-639"
+                owasp: "A01:2021-Broken Access Control"
+              patterns:
+                - pattern: const { userId } = req.params;
+
+            - id: nodegoat-nosql-where
+              languages: [javascript]
+              severity: ERROR
+              message: "NoSQL Injection risk: sử dụng MongoDB $where với dữ liệu có thể bị điều khiển."
+              metadata:
+                category: security
+                cwe: "CWE-943"
+                owasp: "A03:2021-Injection"
+              patterns:
+                - pattern: |
+                    return { $where: $QUERY };
+          RULES
+
+      - name: Quét bảo mật bằng Semgrep và xuất report JSON
+        run: |
+          semgrep scan \
+            --config=auto \
+            --config=nodegoat-security-rules.yml \
+            --json \
+            --output semgrep-report.json \
+            .
+
+      - name: Hiển thị tóm tắt Semgrep findings
+        if: always()
+        run: |
+          if [ -f semgrep-report.json ]; then
+            echo "Total Semgrep findings: $(jq '.results | length' semgrep-report.json)"
+            echo "Selected NodeGoat findings: $(jq '[.results[] | select(.check_id | startswith("nodegoat-"))] | length' semgrep-report.json)"
+          else
+            echo "semgrep-report.json không tồn tại. Có thể bước Semgrep scan đã lỗi trước khi tạo report."
+          fi
+
+      - name: Upload Semgrep report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: semgrep-report.json
 
   sast_sonarcloud_scan:
     name: SonarQube Cloud check
@@ -115,14 +179,33 @@ jobs:
           fail_action: false
 
   quality_gate:
-    name: Quality Gate
+    name: Custom Security Gate
     runs-on: ubuntu-latest
     needs: [sast_semgrep_scan, sast_sonarcloud_scan, sca_snyk_scan, dast_scan]
     steps:
-      - name: Kiểm tra kết quả pipeline
+      - name: Download Semgrep report
+        uses: actions/download-artifact@v4
+        with:
+          name: semgrep-report
+
+      - name: Fail nếu còn lỗi bảo mật tiêu biểu chưa fix
         run: |
-          echo "Tất cả các bước scan đã hoàn thành."
-          echo "Xem chi tiết kết quả tại:"
-          echo "  - SonarCloud Dashboard"
-          echo "  - Snyk Dashboard"
-          echo "  - ZAP Report (GitHub Issues)"
+          if [ ! -f semgrep-report.json ]; then
+            echo "Không tìm thấy semgrep-report.json"
+            exit 1
+          fi
+
+          SELECTED_COUNT=$(jq '[.results[] | select(.check_id | startswith("nodegoat-"))] | length' semgrep-report.json)
+          echo "Selected NodeGoat security findings: $SELECTED_COUNT"
+
+          jq -r '.results[]
+            | select(.check_id | startswith("nodegoat-"))
+            | "- " + .check_id + " | " + .path + ":" + (.start.line | tostring) + " | " + .extra.message' semgrep-report.json
+
+          if [ "$SELECTED_COUNT" -gt 0 ]; then
+            echo "Custom Security Gate FAILED: còn lỗi bảo mật tiêu biểu trong source code."
+            echo "Hãy fix code, không chỉ đánh dấu ignore/accepted trên dashboard."
+            exit 1
+          fi
+
+          echo "Custom Security Gate PASSED: không còn lỗi bảo mật tiêu biểu đã chọn."
