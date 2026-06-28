@@ -60,16 +60,39 @@ const index = (app, db) => {
      */
 
     // Allocations Page
-    app.get("/allocations/:userId", isLoggedIn, allocationsHandler.displayAllocations);
+    app.get("/allocations", isLoggedIn, allocationsHandler.displayAllocations);
+    app.get("/allocations/:userId", isLoggedIn, (req, res) => {
+    return res.redirect("/allocations");
+    });
 
     // Memos Page
     app.get("/memos", isLoggedIn, memosHandler.displayMemos);
     app.post("/memos", isLoggedIn, memosHandler.addMemos);
 
     // Handle redirect for learning resources link
-    app.get("/learn", isLoggedIn, (req, res) => {
+    /*app.get("/learn", isLoggedIn, (req, res) => {
         // Insecure way to handle redirects by taking redirect url from query string
         return res.redirect(req.query.url);
+    });
+    */
+    // Handle redirect for learning resources link
+    app.get("/learn", isLoggedIn, (req, res) => {
+        const allowedRedirects = [
+            "/tutorial",
+            "/research",
+            "/dashboard",
+            "/profile",
+            "/contributions",
+            "/allocations"
+        ];
+
+        const targetUrl = req.query.url;
+
+        if (!targetUrl || !allowedRedirects.includes(targetUrl)) {
+            return res.status(400).send("Invalid redirect URL");
+        }
+
+        return res.redirect(targetUrl);
     });
 
     // Research Page

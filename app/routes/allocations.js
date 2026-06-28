@@ -15,10 +15,14 @@ function AllocationsHandler(db) {
         */
         const {
             userId
-        } = req.params;
+        } = req.session;
         const {
             threshold
         } = req.query;
+        if (!userId)
+        {
+            return res.redirect("/login");
+        }
 
         allocationsDAO.getByUserIdAndThreshold(userId, threshold, (err, allocations) => {
             if (err) return next(err);
